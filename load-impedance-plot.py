@@ -26,7 +26,7 @@ def get_halfpower_frequencies(z, f, f_peak):
     f_peak_index = np.argwhere(f == f_peak)[0][0]
     print(f_peak_index)
     z_halfpower = z[f_peak_index] / np.sqrt(2)
-    delta_z = z - z_halfpower
+    delta_z = np.abs(z - z_halfpower)
 
     # Get first frequency
     i1 = int(np.argmin(delta_z[:f_peak_index]))
