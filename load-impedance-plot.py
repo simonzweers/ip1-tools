@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
+import re
 
 TIME_COL = 0
 DATA_COL = 1
@@ -12,6 +13,28 @@ def get_data_from_xlsx(filename: str, x_col, y_col):
     x = np.array(data.iloc[:, x_col])
     y = np.array(data.iloc[:, y_col])
     return x, y
+
+
+def get_data_from_ltspice_txt(filename: str):
+    f, z, phase = [], [], []
+    pattern = re.compile(
+        r"([-+0-9.eE]+)\s+\(\s*([-+0-9.eE]+)dB,\s*([-+0-9.eE]+)°?\)"
+    )
+    with open(filename, encoding="utf-8", errors="ignore") as file:
+        _ = file.readline().strip()
+        for line in file:
+            m = pattern.search(line)
+            if m:
+                f_, z_db, phase_ = map(float, m.groups())
+                z_ = 10 ** (z_db / 20)
+                print
+                f.append(f_)
+                z.append(z_)
+                phase.append(phase_)
+    f = np.array(f)
+    z = np.array(z)
+    phase = np.array(phase)
+    return f, z, phase
 
 
 def get_peak_location(z, f, limit_lower, limit_higher):
@@ -45,11 +68,14 @@ def find_value_index(f, f_find):
     return f_index
 
 
-def plot_z(filename, ax, label_txt, peak_lower, peak_higher):
+def plot_z(filename_data, filename_sim, ax, label_txt, peak_lower, peak_higher):
     # Plot data aquisition, plot settings
-    f, z = get_data_from_xlsx(filename, TIME_COL, DATA_COL)
+    f, z = get_data_from_xlsx(filename_data, TIME_COL, DATA_COL)
+    f_sim, z_sim, _ = get_data_from_ltspice_txt(filename_sim)
+    print(f_sim, z_sim)
     ax.set_title(label_txt)
     ax.semilogx(f, z, label="|Z|")
+    ax.semilogx(f_sim, z_sim, label="|Z| (Simulated)")
     ax.set_xlim(f.min(), f.max())
     ax.set_xlabel("f (Hz)")
     ax.set_ylabel("|Z| (Ohm)")
@@ -70,18 +96,17 @@ def plot_z(filename, ax, label_txt, peak_lower, peak_higher):
     f_slope_1_index = find_value_index(f, 10000)
     f_slope_2_index = find_value_index(f, 15000)
 
-    dZ_df = (z[f_slope_2_index] - z[f_slope_1_index]) / (f[f_slope_2_index] - f[f_slope_1_index])
-    dZ_dw = dZ_df / (np.pi * 2)
-    print(f"{label_txt}: dZ/dw = {dZ_dw}, dZ_df = {dZ_df}")
+    dZ_dw = (z[f_slope_2_index] - z[f_slope_1_index]) / ((f[f_slope_2_index] - f[f_slope_1_index]) * np.pi * 2)
+    print(f"{label_txt}: dZ/dw = {dZ_dw}")
 
     ax.legend()
 
 
 fig, (ax1, ax2, ax3) = plt.subplots(1, 3, layout='constrained', figsize=(FIG_SIZE, FIG_SIZE/3))
 
-plot_z("data/impedance-measurements/Bass_abs_Z.xlsx", ax1, "Bass", 30, 500)
-plot_z("data/impedance-measurements/Mid_abs_Z.xlsx", ax2, "Midtones", 50, 500)
-plot_z("data/impedance-measurements/High_abs_Z.xlsx", ax3, "High", 100, 2000)
+plot_z("data/impedance-measurements/Bass_abs_Z.xlsx", "data/impedance-measurements/ip1-speaker-impedance-bass.txt", ax1, "Bass", 30, 500)
+# plot_z("data/impedance-measurements/Mid_abs_Z.xlsx", ax2, "Midtones", 50, 500)
+# plot_z("data/impedance-measurements/High_abs_Z.xlsx", ax3, "High", 100, 2000)
 
 # FINAL
 plt.show()
